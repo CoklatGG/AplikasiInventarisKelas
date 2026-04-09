@@ -3,12 +3,33 @@ import sqlite3
 conn = sqlite3.connect("siswa.db")
 cursor = conn.cursor()
 
-cursor.execute("""
+# 0 - User
+# 1 - Admin
+
+cursor.executescript("""
 CREATE TABLE IF NOT EXISTS user(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username VARCHAR(255),
     password VARCHAR(255),
     status TINYINT
+);
+
+CREATE TABLE IF NOT EXISTS barang(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nama_barang VARCHAR(50),
+    jumlah INTEGER,
+    kondisi VARCHAR(50),
+    lokasi VARCHAR(50)
+);
+
+CREATE TABLE IF NOT EXISTS kondisi(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    teks VARCHAR(50)
+);
+
+CREATE TABLE IF NOT EXISTS lokasi(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    teks VARCHAR(50)
 )
 """)
 
