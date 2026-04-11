@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS lokasi(
 )
 """)
 
+cursor.execute("SELECT * FROM user")
+print(cursor.fetchall())
+
 conn.commit()
 conn.close()
 print("Database berhasil dibuat!")
