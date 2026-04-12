@@ -1,6 +1,7 @@
 import sqlite3
+from random import randint
 
-conn = sqlite3.connect("siswa.db")
+conn = sqlite3.connect("inventaris.db")
 cursor = conn.cursor()
 
 # 0 - User
@@ -33,7 +34,8 @@ CREATE TABLE IF NOT EXISTS lokasi(
 )
 """)
 
-cursor.execute("SELECT * FROM user")
+
+cursor.execute("SELECT * FROM barang")
 print(cursor.fetchall())
 
 conn.commit()
