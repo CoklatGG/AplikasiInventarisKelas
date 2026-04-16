@@ -307,21 +307,22 @@ class Admin(tk.Frame):
         
         table_height = 600
 
-        
+        self.root = root
+
+        self.record_frame = tk.Frame()
 
         tk.Label(self, text="Admin").place(anchor="nw", x=5, y=5)
+
+        self.edit_mode = False
 
         data_border_frame = tk.LabelFrame(self, background="cyan", height=750, width=1200, text="Inventaris", font=("Arial", 24))
         data_border_frame.pack_propagate(False)
         data_border_frame.place(anchor="center", relx=0.5, y=420)
         
-        self.edit_btn = tk.Button(self, text="Cancel", width=6, bg="blue")
+        self.edit_btn = tk.Button(self, text="Edit", width=6, bg="blue", command=self.edit)
         self.edit_btn.place(anchor="se", x=1240, y=860, height=35)
 
         self.accept_btn = tk.Button(self, text="Accept", width=9, bg="green")
-        self.accept_btn.place(anchor="se", x=1240 - 20 - self.edit_btn.winfo_reqwidth(), y=860, height=35)
-
-        self.summon_konwin(root)
 
         self.sortby = tk.StringVar(value="Waktu dibuat")
 
@@ -333,6 +334,8 @@ class Admin(tk.Frame):
 
         sortby_cb = ttk.Combobox(sortby_frame, textvariable=self.sortby, values=["Nama", "Waktu dibuat", "Jumlah", "Kondisi", "Lokasi"], state="readonly", cursor="hand2")
         sortby_cb.place(anchor="nw", width=170, height=30, x=170)
+
+        sortby_cb.unbind_class("TCombobox", "<MouseWheel>")
 
         ascdesc_btn = tk.Button(sortby_frame, text="↑")
         ascdesc_btn.place(anchor="nw", width=30, height=30, x=340)
@@ -362,50 +365,102 @@ class Admin(tk.Frame):
         
         self.data_canvas.create_window((0, 0), window=self.data_frame, anchor="nw")
 
-        self.loaded_record: list[tk.Frame] = []
-        self.added_record: list[tk.Frame] = []
+        self.loaded_record: list = []
+        self.added_record: list = []
         self.delete_request_record_id: list[int] = []
 
-        Record(data_canvas_container, [0, "Nama Barang", "Jumlah", "Kondisi", "Lokasi"], "#834646").pack(side="top", anchor="nw")
+        void_separator = MyHSeparator(self, "green", 0)        
+
+        Record(data_canvas_container, [0, "Nama Barang", "Jumlah", "Kondisi", "Lokasi"], "#834646", void_separator).pack(side="top", anchor="nw")
+
+
+    def close_konwin(self):
+        self.kondisi_window.destroy()
+
+        self.data_canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
 
 
     def summon_konwin(self, root: Root):
         width = 350
         height = 400
 
-        kondisi_window = tk.Toplevel(self)
-        kondisi_window.resizable(False, False)
-        kondisi_window.transient(root)
-        kondisi_window.grab_set()
-        kondisi_window.geometry(f"{width}x{height}")
-        kondisi_window.geometry(f"+{max(0, root.winfo_x() + int((1280 - width) / 2))}+{max(0, root.winfo_y() + int((900 - height) / 2))}")
+        self.kondisi_window = tk.Toplevel(self)
+        self.kondisi_window.resizable(False, False)
+        self.kondisi_window.geometry(f"{width}x{height}")
+        self.kondisi_window.geometry(f"+{max(0, root.winfo_x() + int((1280 - width) / 2))}+{max(0, root.winfo_y() + int((900 - height) / 2))}")
+        self.kondisi_window.transient(root)
+        self.kondisi_window.grab_set()        
+        self.kondisi_window.protocol("WM_DELETE_WINDOW", self.close_konwin)
 
-        # tk.Label(kondisi_window, text="Kondisi").place(anchor="nw", x=5, y=5)
+        trecord_ccontainer = tk.Frame(self.kondisi_window, background="lime", height=300, width=width-50)
+        trecord_ccontainer.pack_propagate(False)
+        trecord_ccontainer.place(anchor="nw")
+
+        trecord_canvas_container = tk.Frame(trecord_ccontainer, bg="green")
+        trecord_canvas_container.pack(side="left", fill="both", expand=True)
+
+        self.trecord_canvas = tk.Canvas(trecord_canvas_container, bg="blue", highlightthickness=0)
+        self.trecord_canvas.pack(side="bottom", fill="both", expand=True)
+
+        data_scrollbar = tk.Scrollbar(trecord_ccontainer, orient="vertical", command=self.trecord_canvas.yview, bg="pink")
+        data_scrollbar.pack(side="right", fill="y")
+
+        self.trecord_canvas.config(yscrollcommand=data_scrollbar.set)
+        self.trecord_canvas.bind_all("<MouseWheel>", self.konwin_on_mouse_wheel)
+
+        trecord_frame = tk.Frame(self.trecord_canvas, bg="lime")
+        trecord_frame.pack(fill="both", expand=True)
+        trecord_frame.bind(
+            "<Configure>",
+            lambda e: self.trecord_canvas.config(scrollregion=self.trecord_canvas.bbox("all"))
+        )
         
-        data_border_frame = tk.LabelFrame(kondisi_window, background="cyan", height=height-70, width=width-20, text="Kondisi", font=("Arial", 14))
-        data_border_frame.pack_propagate(False)
-        data_border_frame.place(anchor="nw", x=10, y=10)
+        self.trecord_canvas.create_window((0, 0), window=trecord_frame, anchor="nw")
 
-        TinyRecord(master=data_border_frame, data=["asd", "Baik"]).place(anchor="nw", x=5, y=5)
-        TinyRecord(master=data_border_frame, data=["asd", "Rusak"]).place(anchor="nw", x=5, y=50)
-        tk.Button(data_border_frame, text="+", bg="lime").place(anchor="nw", x=5, y=95, width=30, height=30)
+        TinyRecord(master=trecord_frame, data=["asd", "Baik"]).pack()
+        TinyRecord(master=trecord_frame, data=["asd", "Rusak"]).pack()
+        tk.Button(trecord_frame, text="+", bg="lime").pack()
 
-        btn_frame = tk.Frame(kondisi_window, width=100, height=30)
+        btn_frame = tk.Frame(self.kondisi_window, width=100, height=30)
         btn_frame.place(anchor="center", rely=0.925, relx=0.5)
 
         tk.Button(btn_frame, text="Apply", bg="green").pack(padx=20, side="left")
         tk.Button(btn_frame, text="Cancel", bg="red").pack(padx=20, side="right")
+
+        root.wait_window(self.kondisi_window)
     
     
     def clear_record(self):
-        for r in self.loaded_record:
-            r.destroy()
+        # if len(self.loaded_record) <= 0:
+        #     return
+
+        # for r in self.loaded_record:
+        #     r.destroy()
         
+        # self.root.update()
+
+        # for r in self.loaded_record:
+        #     r.separator.destroy()
+            
+        # self.root.update()
+        
+        # self.loaded_record.clear()
+
+        # if len(self.added_record) <= 0:
+        #     return
+
+        # for r in self.added_record:
+        #     r.destroy()
+
+        # self.root.update()
+
+
+        # for r in self.added_record:
+        #     r.separator.destroy()
+
+        # self.added_record.clear()
+        self.record_frame.destroy()
         self.loaded_record.clear()
-
-        for r in self.added_record:
-            r.destroy()
-
         self.added_record.clear()
     
 
@@ -414,19 +469,64 @@ class Admin(tk.Frame):
         
         result = cursor.execute("SELECT * FROM barang").fetchall()
 
+        self.record_frame = tk.Frame(self.data_frame)
+        self.record_frame.pack()
+
         for d in result:
-            EditableRecord(self.data_frame, d, "#ff7979").pack()
-            MyHSeparator(self.data_frame, "lime", 1).pack(fill="x", expand=True)
+            new_record_separator = MyHSeparator(self.record_frame, "lime", 1)
+
+            if self.edit_mode:
+                new_record = EditableRecord(self.record_frame, d, "#ff7979", new_record_separator)
+                new_record.pack()
+            else:
+                new_record = Record(self.record_frame, d, "#ff7979", new_record_separator)
+                new_record.pack()
+            
+            self.loaded_record.append(new_record)
+            
+            new_record_separator.pack(fill="x", expand=True)
+        
+        if not self.edit_mode:
+            return
+
+        plus_button_frame = tk.Frame(self.record_frame, width=1135, height=42)
+        plus_button_frame.pack()
+
+        plus_button = tk.Button(plus_button_frame, bg="lime", text="+", font=("Arial", 24))
+        plus_button.place(anchor="nw", width=1135, height=42)
 
     
+    def edit(self):
+        self.edit_mode = True
 
+        self.edit_btn.config(text="Cancel", command=self.cancel_changes)
+        
+        self.accept_btn.place(anchor="se", x=1240 - 20 - self.edit_btn.winfo_reqwidth(), y=860, height=35)
+        
+        self.load_record()
+
+
+    def apply_changes(self):
+        pass
+    
+
+    def cancel_changes(self):
+        self.edit_mode = False
+
+        self.edit_btn.config(text="Edit", command=self.edit)
+
+        self.accept_btn.place_forget()
+
+        self.load_record()
+
+    
     def arise(self, root: Root):
         self.tkraise()
         root.geometry("1280x900")
         root.geometry(f"+{max(0, root.winfo_x() - 240)}+{max(0, root.winfo_y() - 150)}")
 
         self.load_record()
-    
+        
     
     def on_mouse_wheel(self, e: tk.Event):
         canvas_height = self.data_canvas.winfo_height()
@@ -434,6 +534,14 @@ class Admin(tk.Frame):
 
         if canvas_height < content_height:
             self.data_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+    
+    
+    def konwin_on_mouse_wheel(self, e: tk.Event):
+        canvas_height = self.trecord_canvas.winfo_height()
+        content_height = self.trecord_canvas.bbox("all")[3]
+
+        if canvas_height < content_height:
+            self.trecord_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
 
 
 class MyHSeparator(tk.Frame):
@@ -442,11 +550,13 @@ class MyHSeparator(tk.Frame):
 
 
 class Record(tk.Frame):
-    def __init__(self, master: tk.Misc, data: list, color: str):
+    def __init__(self, master: tk.Misc, data: list, color: str, separator: MyHSeparator):
         super().__init__(master, bg="purple", width=1135, height=42)
         self.grid_propagate(False)
 
         self.data_id = data[0]
+
+        self.separator = separator
         
         nama_frame = tk.Frame(self, bg=color, width=int((weight_nama/weight_sum) * 1135), height=60)
         nama_frame.pack(side="left")
@@ -479,11 +589,13 @@ class Record(tk.Frame):
 
 
 class EditableRecord(tk.Frame):
-    def __init__(self, master: tk.Misc, data: list, color: str):
+    def __init__(self, master: tk.Misc, data: list, color: str, separator: MyHSeparator):
         super().__init__(master, bg="purple", width=1135, height=42)
         self.grid_propagate(False)
 
         self.data_id = data[0]
+
+        self.separator = separator
         
         nama_frame = tk.Frame(self, bg=color, width=int((weight_nama/weight_sum) * 1135), height=60)
         nama_frame.pack(side="left")
