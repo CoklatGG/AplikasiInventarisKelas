@@ -331,8 +331,8 @@ class Admin(tk.Frame):
         sortby_frame = tk.Frame(data_border_frame)
         sortby_frame.place(anchor="ne", x=1173, y=10, width=370, height=30)
 
-        sortby_label = tk.Label(sortby_frame, text="Urut berdasarkan : ")
-        sortby_label.place(anchor="nw", width=170, height=30, x=0)
+        self.sortby_label = tk.Label(sortby_frame, text="Urut berdasarkan : ")
+        self.sortby_label.place(anchor="nw", width=170, height=30, x=0)
 
         self.sort_dic = {
             "Nama": "nama_barang", 
@@ -393,62 +393,10 @@ class Admin(tk.Frame):
             self.ascdesc_btn.config(text="↑")
         
         self.load_record()
-    
-
-    def close_konwin(self):
-        self.kondisi_window.destroy()
-
-        self.data_canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
 
 
     def summon_konwin(self, root: Root):
-        width = 350
-        height = 400
-
-        self.kondisi_window = tk.Toplevel(self)
-        self.kondisi_window.resizable(False, False)
-        self.kondisi_window.geometry(f"{width}x{height}")
-        self.kondisi_window.geometry(f"+{max(0, root.winfo_x() + int((1280 - width) / 2))}+{max(0, root.winfo_y() + int((900 - height) / 2))}")
-        self.kondisi_window.transient(root)
-        self.kondisi_window.grab_set()        
-        self.kondisi_window.protocol("WM_DELETE_WINDOW", self.close_konwin)
-
-        trecord_ccontainer = tk.Frame(self.kondisi_window, background="lime", height=300, width=width-50)
-        trecord_ccontainer.pack_propagate(False)
-        trecord_ccontainer.place(anchor="nw")
-
-        trecord_canvas_container = tk.Frame(trecord_ccontainer, bg="green")
-        trecord_canvas_container.pack(side="left", fill="both", expand=True)
-
-        self.trecord_canvas = tk.Canvas(trecord_canvas_container, bg="blue", highlightthickness=0)
-        self.trecord_canvas.pack(side="bottom", fill="both", expand=True)
-
-        data_scrollbar = tk.Scrollbar(trecord_ccontainer, orient="vertical", command=self.trecord_canvas.yview, bg="pink")
-        data_scrollbar.pack(side="right", fill="y")
-
-        self.trecord_canvas.config(yscrollcommand=data_scrollbar.set)
-        self.trecord_canvas.bind_all("<MouseWheel>", self.konwin_on_mouse_wheel)
-
-        trecord_frame = tk.Frame(self.trecord_canvas, bg="lime")
-        trecord_frame.pack(fill="both", expand=True)
-        trecord_frame.bind(
-            "<Configure>",
-            lambda e: self.trecord_canvas.config(scrollregion=self.trecord_canvas.bbox("all"))
-        )
-        
-        self.trecord_canvas.create_window((0, 0), window=trecord_frame, anchor="nw")
-
-        TinyRecord(master=trecord_frame, data=["asd", "Baik"]).pack()
-        TinyRecord(master=trecord_frame, data=["asd", "Rusak"]).pack()
-        tk.Button(trecord_frame, text="+", bg="lime").pack()
-
-        btn_frame = tk.Frame(self.kondisi_window, width=100, height=30)
-        btn_frame.place(anchor="center", rely=0.925, relx=0.5)
-
-        tk.Button(btn_frame, text="Apply", bg="green").pack(padx=20, side="left")
-        tk.Button(btn_frame, text="Cancel", bg="red").pack(padx=20, side="right")
-
-        root.wait_window(self.kondisi_window)
+        pass
     
     
     def clear_record(self):
@@ -538,7 +486,9 @@ class Admin(tk.Frame):
         
         self.apply_btn.place(anchor="se", x=1240 - 20 - self.edit_btn.winfo_reqwidth(), y=860, height=35)
         
-        
+        self.ascdesc_btn.config(state="disabled")
+        self.sortby_cb.config(state="disabled")
+        self.sortby_label.config(state="disabled")
 
         self.load_record()
     
@@ -549,6 +499,10 @@ class Admin(tk.Frame):
         self.edit_btn.config(text="Edit", command=self.edit)
 
         self.apply_btn.place_forget()
+
+        self.sortby_label.config(state="normal")
+        self.ascdesc_btn.config(state="normal")
+        self.sortby_cb.config(state="normal")
 
         self.load_record()
 
@@ -631,14 +585,6 @@ VALUES (?, ?, ?, ?)
 
         if canvas_height < content_height:
             self.data_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
-    
-    
-    def konwin_on_mouse_wheel(self, e: tk.Event):
-        canvas_height = self.trecord_canvas.winfo_height()
-        content_height = self.trecord_canvas.bbox("all")[3]
-
-        if canvas_height < content_height:
-            self.trecord_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
 
 
 class MyHSeparator(tk.Frame):
@@ -745,7 +691,7 @@ class EditableRecord(tk.Frame):
         kondisi_dd = ttk.Combobox(kondisi_cbtn_frame, values=kondisi_opts, textvariable=self.kondisi_str, cursor="hand2", state="readonly")
         kondisi_dd.place(anchor="nw", x=0, y=0, height=30, width=190)
 
-        kondisi_btn = tk.Button(kondisi_cbtn_frame, text="+", font=("Arial", 14))
+        kondisi_btn = tk.Button(kondisi_cbtn_frame, text="+", font=("Arial", 14), command=self.summon_tiny_window)
         kondisi_btn.place(anchor="ne", relx=1, rely=0, height=30, width=30)
 
         lokasi_cbtn_frame = tk.Frame(lokasi_frame, bg="orange", height=30, width=220)
@@ -754,7 +700,7 @@ class EditableRecord(tk.Frame):
         lokasi_dd = ttk.Combobox(lokasi_cbtn_frame, values=lokasi_opts, textvariable=self.lokasi_str, cursor="hand2", state="readonly")
         lokasi_dd.place(anchor="nw", x=0, y=0, height=30, width=190)
     
-        lokasi_btn = tk.Button(lokasi_cbtn_frame, text="+", font=("Arial", 14))
+        lokasi_btn = tk.Button(lokasi_cbtn_frame, text="+", font=("Arial", 14), command=self.summon_tiny_window)
         lokasi_btn.place(anchor="ne", relx=1, rely=0, height=30, width=30)
 
 
@@ -798,6 +744,10 @@ class EditableRecord(tk.Frame):
         return True
 
 
+    def summon_tiny_window(self):
+        TinyWin(self.admin_control, self.admin_control, "Kondisi Custom", [])
+
+
 
 class TinyRecord(tk.Frame):
     def __init__(self, master, data: list):
@@ -814,6 +764,86 @@ class TinyRecord(tk.Frame):
         tk.Button(self, image=self.sampah_img, bg="red").pack(side="right")
 
     
+class TinyWin(tk.Toplevel):
+    def __init__(self, master, admin_control: Admin, title: str, data: list):
+        super().__init__(master)
+
+        width = 350
+        height = 400
+
+        self.admin_control = admin_control
+
+        self.resizable(False, False)
+        self.title(title)
+        self.geometry(f"{width}x{height}")
+        self.geometry(f"+{max(0, root.winfo_x() + int((1280 - width) / 2))}+{max(0, root.winfo_y() + int((900 - height) / 2))}")
+        self.transient(root)
+        self.grab_set()        
+        self.protocol("WM_DELETE_WINDOW", self.close)
+
+        main_frame = tk.Frame(self)
+        main_frame.pack(fill="both", expand=True)
+
+        trecord_canvas_container = tk.Frame(main_frame, background="lime", height=height, width=width-50)
+        trecord_canvas_container.pack_propagate(False)
+        trecord_canvas_container.place(anchor="nw")
+
+        self.trecord_canvas = tk.Canvas(main_frame, bg="blue", highlightthickness=0)
+        self.trecord_canvas.pack(fill="both", expand=True)
+
+        data_scrollbar = tk.Scrollbar(main_frame, orient="vertical", bg="pink", command=self.trecord_canvas.yview)
+        data_scrollbar.place(anchor="ne", relx=1, height=height)
+
+        self.trecord_canvas.config(yscrollcommand=data_scrollbar.set)
+        self.trecord_canvas.bind_all("<MouseWheel>", self.scroll)
+
+        trecord_frame = tk.Frame(self.trecord_canvas, bg="lime")
+        trecord_frame.pack(fill="both", expand=True)
+        trecord_frame.bind(
+            "<Configure>",
+            lambda e: self.trecord_canvas.config(scrollregion=self.trecord_canvas.bbox("all"))
+        )
+        
+        self.trecord_canvas.create_window((0, 0), window=trecord_frame, anchor="nw")
+
+        self.loaded_record: list[TinyRecord] = []
+        self.added_record: list[TinyRecord] = []
+        self.delete_request_record_id: list[int] = []
+
+        TinyRecord(master=trecord_frame, data=["asd", "Baik"]).pack()
+        TinyRecord(master=trecord_frame, data=["asd", "Rusak"]).pack()
+        
+        tk.Button(trecord_frame, text="+", bg="lime").pack()
+
+        btn_frame = tk.Frame(self, width=100, height=30)
+        btn_frame.place(anchor="center", rely=0.925, relx=0.5)
+
+        tk.Button(btn_frame, text="Apply", bg="green").pack(padx=20, side="left")
+        tk.Button(btn_frame, text="Cancel", bg="red").pack(padx=20, side="right")
+
+        root.wait_window(self)
+
+
+    def load_record(self):
+        pass
+
+
+    def apply_changes(self):
+        pass
+
+
+    def scroll(self, e: tk.Event):
+        canvas_height = self.trecord_canvas.winfo_height()
+        content_height = self.trecord_canvas.bbox("all")[3]
+
+        if canvas_height < content_height:
+            self.trecord_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+    
+
+    def close(self):
+        self.destroy()
+
+        self.admin_control.data_canvas.bind_all("<MouseWheel>", self.admin_control.on_mouse_wheel)
 
 
 if __name__ == "__main__":
