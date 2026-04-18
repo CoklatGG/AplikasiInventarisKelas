@@ -322,9 +322,11 @@ class Admin(tk.Frame):
         self.edit_btn = tk.Button(self, text="Edit", width=6, bg="blue", command=self.edit)
         self.edit_btn.place(anchor="se", x=1240, y=860, height=35)
 
-        self.accept_btn = tk.Button(self, text="Accept", width=9, bg="green")
+        self.apply_btn = tk.Button(self, text="Accept", width=9, bg="green", command=self.apply_changes)
 
         self.sortby = tk.StringVar(value="Waktu dibuat")
+
+        self.sortby.trace_add("write", self.load_record)
 
         sortby_frame = tk.Frame(data_border_frame)
         sortby_frame.place(anchor="ne", x=1173, y=10, width=370, height=30)
@@ -332,13 +334,23 @@ class Admin(tk.Frame):
         sortby_label = tk.Label(sortby_frame, text="Urut berdasarkan : ")
         sortby_label.place(anchor="nw", width=170, height=30, x=0)
 
-        sortby_cb = ttk.Combobox(sortby_frame, textvariable=self.sortby, values=["Nama", "Waktu dibuat", "Jumlah", "Kondisi", "Lokasi"], state="readonly", cursor="hand2")
-        sortby_cb.place(anchor="nw", width=170, height=30, x=170)
+        self.sort_dic = {
+            "Nama": "nama_barang", 
+            "Waktu dibuat": "id", 
+            "Jumlah": "jumlah", 
+            "Kondisi": "kondisi", 
+            "Lokasi": "lokasi"
+        }
+        
+        self.sortby_cb = ttk.Combobox(sortby_frame, textvariable=self.sortby, values=["Nama", "Waktu dibuat", "Jumlah", "Kondisi", "Lokasi"], state="readonly", cursor="hand2")
+        self.sortby_cb.place(anchor="nw", width=170, height=30, x=170)
 
-        sortby_cb.unbind_class("TCombobox", "<MouseWheel>")
+        self.sortby_cb.unbind_class("TCombobox", "<MouseWheel>")
 
-        ascdesc_btn = tk.Button(sortby_frame, text="↑")
-        ascdesc_btn.place(anchor="nw", width=30, height=30, x=340)
+        self.ascending = True
+
+        self.ascdesc_btn = tk.Button(sortby_frame, text="↑", command=self.change_order)
+        self.ascdesc_btn.place(anchor="nw", width=30, height=30, x=340)
         
         content_container = tk.Frame(data_border_frame, background="lime", height=table_height, width=1150)
         content_container.pack_propagate(False)
@@ -365,14 +377,23 @@ class Admin(tk.Frame):
         
         self.data_canvas.create_window((0, 0), window=self.data_frame, anchor="nw")
 
-        self.loaded_record: list = []
-        self.added_record: list = []
+        self.loaded_record: list[EditableRecord] = []
+        self.added_record: list[EditableRecord] = []
         self.delete_request_record_id: list[int] = []
 
-        void_separator = MyHSeparator(self, "green", 0)        
+        Record(data_canvas_container, [0, "Nama Barang", "Jumlah", "Kondisi", "Lokasi"], "#834646").pack(side="top", anchor="nw")
+    
 
-        Record(data_canvas_container, [0, "Nama Barang", "Jumlah", "Kondisi", "Lokasi"], "#834646", void_separator).pack(side="top", anchor="nw")
-
+    def change_order(self):
+        if self.ascending:
+            self.ascending = False
+            self.ascdesc_btn.config(text="↓")
+        else:
+            self.ascending = True
+            self.ascdesc_btn.config(text="↑")
+        
+        self.load_record()
+    
 
     def close_konwin(self):
         self.kondisi_window.destroy()
@@ -464,60 +485,136 @@ class Admin(tk.Frame):
         self.added_record.clear()
     
 
-    def load_record(self):
+    def load_record(self, *args):
         self.clear_record()
         
-        result = cursor.execute("SELECT * FROM barang").fetchall()
+        # print(self.ascending)
+        # print(self.sort_dic[self.sortby.get()])
+
+        if self.ascending:
+            cursor.execute(f"SELECT * FROM barang ORDER BY {self.sort_dic[self.sortby.get()]} ASC")
+        else:
+            cursor.execute(f"SELECT * FROM barang ORDER BY {self.sort_dic[self.sortby.get()]} DESC")
+        
+        result = cursor.fetchall()
+
+        data_length = len(result)
 
         self.record_frame = tk.Frame(self.data_frame)
         self.record_frame.pack()
 
-        for d in result:
+        for i in range(data_length):
             new_record_separator = MyHSeparator(self.record_frame, "lime", 1)
 
             if self.edit_mode:
-                new_record = EditableRecord(self.record_frame, d, "#ff7979", new_record_separator)
+                new_record = EditableRecord(self.record_frame, result[i], "#ff7979", self, new_record_separator)
                 new_record.pack()
+                
+                self.loaded_record.append(new_record)
             else:
-                new_record = Record(self.record_frame, d, "#ff7979", new_record_separator)
+                new_record = Record(self.record_frame, result[i], "#ff7979")
                 new_record.pack()
             
-            self.loaded_record.append(new_record)
+            
+            if i + 1 >= data_length:
+                continue
             
             new_record_separator.pack(fill="x", expand=True)
         
         if not self.edit_mode:
             return
 
-        plus_button_frame = tk.Frame(self.record_frame, width=1135, height=42)
-        plus_button_frame.pack()
+        self.plus_button_frame = tk.Frame(self.record_frame, width=1135, height=42)
+        self.plus_button_frame.pack()
 
-        plus_button = tk.Button(plus_button_frame, bg="lime", text="+", font=("Arial", 24))
+        plus_button = tk.Button(self.plus_button_frame, bg="lime", text="+", font=("Arial", 24), command=self.add_record)
         plus_button.place(anchor="nw", width=1135, height=42)
 
     
     def edit(self):
         self.edit_mode = True
 
-        self.edit_btn.config(text="Cancel", command=self.cancel_changes)
+        self.edit_btn.config(text="Cancel", command=self.unedit)
         
-        self.accept_btn.place(anchor="se", x=1240 - 20 - self.edit_btn.winfo_reqwidth(), y=860, height=35)
+        self.apply_btn.place(anchor="se", x=1240 - 20 - self.edit_btn.winfo_reqwidth(), y=860, height=35)
         
+        
+
         self.load_record()
-
-
-    def apply_changes(self):
-        pass
     
 
-    def cancel_changes(self):
+    def unedit(self):
         self.edit_mode = False
 
         self.edit_btn.config(text="Edit", command=self.edit)
 
-        self.accept_btn.place_forget()
+        self.apply_btn.place_forget()
 
         self.load_record()
+
+
+    def add_record(self):
+        new_record_separator = MyHSeparator(self.record_frame, "lime", 1)
+        
+        new_record = EditableRecord(self.record_frame, [-1, "Barang baru", 1, "Baik", "Di kelas"], "#ff7979", self, new_record_separator)
+
+        self.plus_button_frame.pack_forget()
+
+        if len(self.added_record) <= 0:
+            last_separator = self.loaded_record[len(self.loaded_record) - 1].separator
+        else:
+            last_separator = self.added_record[len(self.added_record) - 1].separator
+
+        self.added_record.append(new_record)
+
+        last_separator.pack(fill="x", expand=True)
+        new_record.pack()
+        self.plus_button_frame.pack()
+        
+
+    def apply_changes(self):
+        for d in self.loaded_record:
+            if d.delete_requested:
+                continue
+
+            if d.not_changed():
+                continue
+
+            cursor.execute(
+"""
+UPDATE barang
+SET nama_barang = ?, jumlah = ?, kondisi = ?, lokasi = ?
+WHERE id = ?
+""",
+(
+    d.nama_str.get(), 
+    int(d.jumlah_str.get()), 
+    d.kondisi_str.get(), 
+    d.lokasi_str.get(), 
+    d.data_id
+)
+            )
+
+        for id in self.delete_request_record_id:
+            cursor.execute("DELETE FROM barang WHERE id = ?", (id, ))
+        
+        for d in self.added_record:
+            cursor.execute(
+"""
+INSERT INTO barang (nama_barang, jumlah, kondisi, lokasi)
+VALUES (?, ?, ?, ?)
+""",
+(
+    d.nama_str.get(), 
+    int(d.jumlah_str.get()), 
+    d.kondisi_str.get(), 
+    d.lokasi_str.get()
+)
+            )
+        
+        conn.commit()
+
+        self.unedit()
 
     
     def arise(self, root: Root):
@@ -550,13 +647,11 @@ class MyHSeparator(tk.Frame):
 
 
 class Record(tk.Frame):
-    def __init__(self, master: tk.Misc, data: list, color: str, separator: MyHSeparator):
+    def __init__(self, master: tk.Misc, data: list, color: str):
         super().__init__(master, bg="purple", width=1135, height=42)
         self.grid_propagate(False)
 
         self.data_id = data[0]
-
-        self.separator = separator
         
         nama_frame = tk.Frame(self, bg=color, width=int((weight_nama/weight_sum) * 1135), height=60)
         nama_frame.pack(side="left")
@@ -589,14 +684,18 @@ class Record(tk.Frame):
 
 
 class EditableRecord(tk.Frame):
-    def __init__(self, master: tk.Misc, data: list, color: str, separator: MyHSeparator):
+    def __init__(self, master: tk.Misc, data: list, color: str, admin_control: Admin, separator: MyHSeparator):
         super().__init__(master, bg="purple", width=1135, height=42)
         self.grid_propagate(False)
 
         self.data_id = data[0]
 
         self.separator = separator
-        
+
+        self.admin_control = admin_control
+
+        self.delete_requested = False
+
         nama_frame = tk.Frame(self, bg=color, width=int((weight_nama/weight_sum) * 1135), height=60)
         nama_frame.pack(side="left")
         nama_frame.pack_propagate(False)
@@ -613,6 +712,12 @@ class EditableRecord(tk.Frame):
         lokasi_frame.pack(side="left")
         lokasi_frame.pack_propagate(False)
 
+        self.previous_nama_str =  tk.StringVar(value=data[1])
+        self.previous_jumlah_str = tk.StringVar(value=data[2])
+        self.previous_kondisi_str = tk.StringVar(value=data[3])
+        self.previous_lokasi_str = tk.StringVar(value=data[4])
+        
+        self.nama_str =  tk.StringVar(value=data[1])
         self.jumlah_str = tk.StringVar(value=data[2])
         self.kondisi_str = tk.StringVar(value=data[3])
         self.lokasi_str = tk.StringVar(value=data[4])
@@ -622,14 +727,11 @@ class EditableRecord(tk.Frame):
 
         self.sampah_img = tk.PhotoImage(file="res/garbage.png")
 
-        delete_btn = tk.Button(nama_frame, bg="red", fg="white", font=("Arial", 20), image=self.sampah_img)
+        delete_btn = tk.Button(nama_frame, bg="red", fg="white", font=("Arial", 20), image=self.sampah_img, command=self.delete)
         delete_btn.place(anchor="w", rely=0.5, x=5, width=30, height=30)
 
-        nama_ent = tk.Entry(nama_frame, bg="red", font=("Arial", 20))
+        nama_ent = tk.Entry(nama_frame, bg="red", font=("Arial", 20), textvariable=self.nama_str)
         nama_ent.place(anchor="w", rely=0.5, x=50, height=30, width=200)
-
-        nama_ent.insert(0, data[1])
-
 
         jumlah_spinb = tk.Spinbox(jumlah_frame, bg="red", font=("Arial", 20), textvariable=self.jumlah_str, from_=1, to=999, buttoncursor="hand2", width=4)
         jumlah_spinb.pack(anchor="w", padx=5, expand=True)
@@ -655,6 +757,7 @@ class EditableRecord(tk.Frame):
         lokasi_btn = tk.Button(lokasi_cbtn_frame, text="+", font=("Arial", 14))
         lokasi_btn.place(anchor="ne", relx=1, rely=0, height=30, width=30)
 
+
     def oof(self, e: tk.Event):
         self.master.focus_set()
     
@@ -666,7 +769,35 @@ class EditableRecord(tk.Frame):
             self.jumlah_str.set("1")
         
         self.jumlah_str.set(str(min(max(1, int(self.jumlah_str.get())), 999)))
+
+    
+    def delete(self):
+        self.delete_requested = True
+
+        self.separator.destroy()
+        self.destroy()
+
+        if self.data_id < 0:
+            return
+
+        self.admin_control.delete_request_record_id.append(self.data_id)
+
+    def not_changed(self) -> bool:
+        if not self.previous_nama_str.get() == self.nama_str:
+            return False
+
+        if not self.previous_jumlah_str.get() == self.jumlah_str:
+            return False
+
+        if not self.previous_kondisi_str.get() == self.kondisi_str:
+            return False
+
+        if not self.previous_lokasi_str.get() == self.lokasi_str:
+            return False
         
+        return True
+
+
 
 class TinyRecord(tk.Frame):
     def __init__(self, master, data: list):

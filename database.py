@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS lokasi(
 """)
 
 
-cursor.execute("SELECT * FROM barang")
+cursor.execute("SELECT * FROM user")
 print(cursor.fetchall())
 
 conn.commit()
