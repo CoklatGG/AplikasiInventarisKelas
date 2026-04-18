@@ -1,7 +1,9 @@
 import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk 
+from tkinter import filedialog
 import sqlite3
+import csv
 from time import sleep
 from re import sub
 
@@ -36,12 +38,12 @@ class Root(tk.Tk):
 
         self.frames = {}
 
-        for F in (Login, Register, Admin):
+        for F in (Login, Register, Admin, User):
             frame: tk.Frame = F(container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
 
-        self.show_frame(Admin)
+        self.show_frame(Login)
 
     def show_frame(self, page):
         frame = self.frames[page]
@@ -324,6 +326,9 @@ class Admin(tk.Frame):
 
         self.apply_btn = tk.Button(self, text="Accept", width=9, bg="green", command=self.apply_changes)
 
+        self.export_btn = tk.Button(data_border_frame, bg="blue", text="Export", command=self.export)
+        self.export_btn.place(anchor="se", x=1173, y=692, width=75, height=30)
+
         self.sortby = tk.StringVar(value="Waktu dibuat")
 
         self.sortby.trace_add("write", self.load_record)
@@ -393,41 +398,8 @@ class Admin(tk.Frame):
             self.ascdesc_btn.config(text="↑")
         
         self.load_record()
-
-
-    def summon_konwin(self, root: Root):
-        pass
-    
     
     def clear_record(self):
-        # if len(self.loaded_record) <= 0:
-        #     return
-
-        # for r in self.loaded_record:
-        #     r.destroy()
-        
-        # self.root.update()
-
-        # for r in self.loaded_record:
-        #     r.separator.destroy()
-            
-        # self.root.update()
-        
-        # self.loaded_record.clear()
-
-        # if len(self.added_record) <= 0:
-        #     return
-
-        # for r in self.added_record:
-        #     r.destroy()
-
-        # self.root.update()
-
-
-        # for r in self.added_record:
-        #     r.separator.destroy()
-
-        # self.added_record.clear()
         self.record_frame.destroy()
         self.loaded_record.clear()
         self.added_record.clear()
@@ -435,9 +407,6 @@ class Admin(tk.Frame):
 
     def load_record(self, *args):
         self.clear_record()
-        
-        # print(self.ascending)
-        # print(self.sort_dic[self.sortby.get()])
 
         if self.ascending:
             cursor.execute(f"SELECT * FROM barang ORDER BY {self.sort_dic[self.sortby.get()]} ASC")
@@ -489,6 +458,7 @@ class Admin(tk.Frame):
         self.ascdesc_btn.config(state="disabled")
         self.sortby_cb.config(state="disabled")
         self.sortby_label.config(state="disabled")
+        self.export_btn.config(state="disabled")
 
         self.load_record()
     
@@ -503,6 +473,7 @@ class Admin(tk.Frame):
         self.sortby_label.config(state="normal")
         self.ascdesc_btn.config(state="normal")
         self.sortby_cb.config(state="normal")
+        self.export_btn.config(state="normal")
 
         self.load_record()
 
@@ -514,14 +485,19 @@ class Admin(tk.Frame):
 
         self.plus_button_frame.pack_forget()
 
+        last_separator = None
+        
         if len(self.added_record) <= 0:
-            last_separator = self.loaded_record[len(self.loaded_record) - 1].separator
+            if len(self.loaded_record) > 0:
+                last_separator = self.loaded_record[len(self.loaded_record) - 1].separator
         else:
             last_separator = self.added_record[len(self.added_record) - 1].separator
 
         self.added_record.append(new_record)
 
-        last_separator.pack(fill="x", expand=True)
+        if not last_separator == None:
+            last_separator.pack(fill="x", expand=True)
+
         new_record.pack()
         self.plus_button_frame.pack()
         
@@ -553,6 +529,9 @@ WHERE id = ?
             cursor.execute("DELETE FROM barang WHERE id = ?", (id, ))
         
         for d in self.added_record:
+            if d.delete_requested:
+                continue
+
             cursor.execute(
 """
 INSERT INTO barang (nama_barang, jumlah, kondisi, lokasi)
@@ -585,6 +564,63 @@ VALUES (?, ?, ?, ?)
 
         if canvas_height < content_height:
             self.data_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+    
+
+    def reload_cb_opts(self):
+        kondisi_opts = ["Baik", "Rusak"]
+        cursor.execute("SELECT * FROM kondisi")
+
+        for r in cursor.fetchall():
+            kondisi_opts.append(r[1])
+        
+        lokasi_opts = ["Di kelas", "Dipinjam"]
+        cursor.execute("SELECT * FROM lokasi")
+
+        for r in cursor.fetchall():
+            lokasi_opts.append(r[1])
+
+        for r in self.loaded_record:
+            if r.delete_requested:
+                continue
+
+            r.kondisi_dd.config(values=kondisi_opts)
+            r.lokasi_dd.config(values=lokasi_opts)
+
+        for r in self.added_record:
+            if r.delete_requested:
+                continue
+
+            r.kondisi_dd.config(values=kondisi_opts)
+            r.lokasi_dd.config(values=lokasi_opts)
+    
+
+    def export(self):
+        file_path = filedialog.asksaveasfilename(
+            initialdir=".",
+            initialfile="data.csv",
+            title="Export File As",
+            defaultextension=".csv",
+            filetypes=(("CSV files", "*.csv"), ),
+            confirmoverwrite=True
+        )
+
+        if not file_path:
+            return
+        
+        if self.ascending:
+            cursor.execute(f"SELECT nama_barang, jumlah, kondisi, lokasi FROM barang ORDER BY {self.sort_dic[self.sortby.get()]} ASC")
+        else:
+            cursor.execute(f"SELECT nama_barang, jumlah, kondisi, lokasi FROM barang ORDER BY {self.sort_dic[self.sortby.get()]} DESC")
+
+        data = cursor.fetchall()
+        
+        with open(file_path, "w", newline="") as file:
+            writer = csv.writer(file, delimiter=";")
+
+            header = ["Nama Barang", "Jumlah", "Kondisi", "Lokasi"]
+
+            writer.writerow(header)
+            writer.writerows(data)
 
 
 class MyHSeparator(tk.Frame):
@@ -596,6 +632,8 @@ class Record(tk.Frame):
     def __init__(self, master: tk.Misc, data: list, color: str):
         super().__init__(master, bg="purple", width=1135, height=42)
         self.grid_propagate(False)
+
+        self.data = data
 
         self.data_id = data[0]
         
@@ -669,7 +707,16 @@ class EditableRecord(tk.Frame):
         self.lokasi_str = tk.StringVar(value=data[4])
 
         kondisi_opts = ["Baik", "Rusak"]
+        cursor.execute("SELECT * FROM kondisi")
+
+        for r in cursor.fetchall():
+            kondisi_opts.append(r[1])
+        
         lokasi_opts = ["Di kelas", "Dipinjam"]
+        cursor.execute("SELECT * FROM lokasi")
+
+        for r in cursor.fetchall():
+            lokasi_opts.append(r[1])
 
         self.sampah_img = tk.PhotoImage(file="res/garbage.png")
 
@@ -688,19 +735,19 @@ class EditableRecord(tk.Frame):
         kondisi_cbtn_frame = tk.Frame(kondisi_frame, bg="orange", height=30, width=220)
         kondisi_cbtn_frame.pack(anchor="w", padx=5, expand=True)
 
-        kondisi_dd = ttk.Combobox(kondisi_cbtn_frame, values=kondisi_opts, textvariable=self.kondisi_str, cursor="hand2", state="readonly")
-        kondisi_dd.place(anchor="nw", x=0, y=0, height=30, width=190)
+        self.kondisi_dd = ttk.Combobox(kondisi_cbtn_frame, values=kondisi_opts, textvariable=self.kondisi_str, cursor="hand2", state="readonly")
+        self.kondisi_dd.place(anchor="nw", x=0, y=0, height=30, width=190)
 
-        kondisi_btn = tk.Button(kondisi_cbtn_frame, text="+", font=("Arial", 14), command=self.summon_tiny_window)
+        kondisi_btn = tk.Button(kondisi_cbtn_frame, text="+", font=("Arial", 14), command=self.summon_konwin)
         kondisi_btn.place(anchor="ne", relx=1, rely=0, height=30, width=30)
 
         lokasi_cbtn_frame = tk.Frame(lokasi_frame, bg="orange", height=30, width=220)
         lokasi_cbtn_frame.pack(anchor="w", padx=5, expand=True)
         
-        lokasi_dd = ttk.Combobox(lokasi_cbtn_frame, values=lokasi_opts, textvariable=self.lokasi_str, cursor="hand2", state="readonly")
-        lokasi_dd.place(anchor="nw", x=0, y=0, height=30, width=190)
+        self.lokasi_dd = ttk.Combobox(lokasi_cbtn_frame, values=lokasi_opts, textvariable=self.lokasi_str, cursor="hand2", state="readonly")
+        self.lokasi_dd.place(anchor="nw", x=0, y=0, height=30, width=190)
     
-        lokasi_btn = tk.Button(lokasi_cbtn_frame, text="+", font=("Arial", 14), command=self.summon_tiny_window)
+        lokasi_btn = tk.Button(lokasi_cbtn_frame, text="+", font=("Arial", 14), command=self.summon_lokwin)
         lokasi_btn.place(anchor="ne", relx=1, rely=0, height=30, width=30)
 
 
@@ -744,34 +791,66 @@ class EditableRecord(tk.Frame):
         return True
 
 
-    def summon_tiny_window(self):
-        TinyWin(self.admin_control, self.admin_control, "Kondisi Custom", [])
+    def summon_konwin(self):
+        TinyWin(self.admin_control, self.admin_control, "Kondisi Custom", "kondisi")
+
+
+    def summon_lokwin(self):
+        TinyWin(self.admin_control, self.admin_control, "Lokasi Custom", "lokasi")
 
 
 
 class TinyRecord(tk.Frame):
-    def __init__(self, master, data: list):
-        super().__init__(master)
+    def __init__(self, master, data: list, tw_control: TinyWin):
+        super().__init__(master, width=336, height=50)
+
+        self.data_id = data[0]
+
+        self.delete_requested = False
+
+        self.tw_control = tw_control
+
+        self.previous_text = tk.StringVar(value=data[1])
+        self.text = tk.StringVar(value=data[1])
+
+        text_frame = tk.Frame(self, width=279, height=50, bg="purple")
+        text_frame.pack_propagate(False)
+        text_frame.place(anchor="w", x=10, rely=0.5)
+
+        text_ent = tk.Entry(text_frame, textvariable=self.text, font=("Arial", 24), bg="red")
+        text_ent.pack(expand=True)
+
+        self.sampah_img = tk.PhotoImage(file="res/garbage15x20.png")
+
+        trash_btn = tk.Button(self, image=self.sampah_img, bg="red", command=self.delete)
+        trash_btn.place(anchor="e", x=326, rely=0.5, width=30, height=30)
+
+    def delete(self):
+        self.delete_requested = True
+
+        self.destroy()
+
+        if self.data_id < 0:
+            return
+
+        self.tw_control.delete_request_record_id.append(self.data_id)
 
 
+    def not_changed(self) -> bool:
+        return not self.previous_text.get() == self.text.get()
 
-        text = tk.StringVar(value=data[1])
-
-        tk.Entry(self, textvariable=text, font=("Arial", 12), bg="red").pack(side="left")
-
-        self.sampah_img = tk.PhotoImage(file="res/garbage.png")
-
-        tk.Button(self, image=self.sampah_img, bg="red").pack(side="right")
 
     
 class TinyWin(tk.Toplevel):
-    def __init__(self, master, admin_control: Admin, title: str, data: list):
+    def __init__(self, master, admin_control: Admin, title: str, table: str):
         super().__init__(master)
 
         width = 350
         height = 400
 
         self.admin_control = admin_control
+
+        self.table = table
 
         self.resizable(False, False)
         self.title(title)
@@ -784,7 +863,7 @@ class TinyWin(tk.Toplevel):
         main_frame = tk.Frame(self)
         main_frame.pack(fill="both", expand=True)
 
-        trecord_canvas_container = tk.Frame(main_frame, background="lime", height=height, width=width-50)
+        trecord_canvas_container = tk.Frame(main_frame, height=height, width=width-50)
         trecord_canvas_container.pack_propagate(False)
         trecord_canvas_container.place(anchor="nw")
 
@@ -797,39 +876,103 @@ class TinyWin(tk.Toplevel):
         self.trecord_canvas.config(yscrollcommand=data_scrollbar.set)
         self.trecord_canvas.bind_all("<MouseWheel>", self.scroll)
 
-        trecord_frame = tk.Frame(self.trecord_canvas, bg="lime")
-        trecord_frame.pack(fill="both", expand=True)
-        trecord_frame.bind(
+        self.trecord_frame = tk.Frame(self.trecord_canvas)
+        self.trecord_frame.pack(fill="both", expand=True)
+        self.trecord_frame.bind(
             "<Configure>",
             lambda e: self.trecord_canvas.config(scrollregion=self.trecord_canvas.bbox("all"))
         )
         
-        self.trecord_canvas.create_window((0, 0), window=trecord_frame, anchor="nw")
+        self.trecord_canvas.create_window((0, 0), window=self.trecord_frame, anchor="nw")
 
         self.loaded_record: list[TinyRecord] = []
         self.added_record: list[TinyRecord] = []
         self.delete_request_record_id: list[int] = []
 
-        TinyRecord(master=trecord_frame, data=["asd", "Baik"]).pack()
-        TinyRecord(master=trecord_frame, data=["asd", "Rusak"]).pack()
-        
-        tk.Button(trecord_frame, text="+", bg="lime").pack()
-
         btn_frame = tk.Frame(self, width=100, height=30)
         btn_frame.place(anchor="center", rely=0.925, relx=0.5)
 
-        tk.Button(btn_frame, text="Apply", bg="green").pack(padx=20, side="left")
-        tk.Button(btn_frame, text="Cancel", bg="red").pack(padx=20, side="right")
+        tk.Button(btn_frame, text="Apply", bg="green", command=self.apply_changes).pack(padx=20, side="left")
+        tk.Button(btn_frame, text="Cancel", bg="red", command=self.close).pack(padx=20, side="right")
+
+        self.load_record()
 
         root.wait_window(self)
 
 
     def load_record(self):
-        pass
+        tk.Frame(self.trecord_frame, height=5).pack()
+
+        cursor.execute(f"SELECT * FROM {self.table}")
+
+        result = cursor.fetchall()
+
+        for d in result:
+            new_record = TinyRecord(self.trecord_frame, d, self)
+            new_record.pack()
+                
+            self.loaded_record.append(new_record)
+
+        self.plus_button_frame = tk.Frame(self.trecord_frame, width=333, height=50)
+        self.plus_button_frame.pack()
+
+        plus_button = tk.Button(self.plus_button_frame, bg="lime", text="+", font=("Arial", 12), command=self.add_record)
+        plus_button.place(anchor="nw", x=10, y=5, width=25, height=25)
 
 
     def apply_changes(self):
-        pass
+        for d in self.loaded_record:
+            if d.delete_requested:
+                continue
+
+            if d.not_changed():
+                continue
+
+            cursor.execute(
+f"""
+UPDATE {self.table}
+SET teks = ?
+WHERE id = ?
+""",
+(
+    d.text.get(),
+    d.data_id
+)
+            )
+
+        for id in self.delete_request_record_id:
+            cursor.execute(f"DELETE FROM {self.table} WHERE id = ?", (id, ))
+        
+        for d in self.added_record:
+            if d.delete_requested:
+                continue
+
+            cursor.execute(
+f"""
+INSERT INTO {self.table} (teks)
+VALUES (?)
+""",
+(
+    d.text.get(),
+)
+            )
+        
+        conn.commit()
+
+        self.admin_control.reload_cb_opts()
+
+        self.close()
+
+
+    def add_record(self):
+        new_record = TinyRecord(self.trecord_frame, [-1, "Kondisi Baru"], self)
+
+        self.plus_button_frame.pack_forget()
+
+        self.added_record.append(new_record)
+
+        new_record.pack()
+        self.plus_button_frame.pack()
 
 
     def scroll(self, e: tk.Event):
@@ -844,6 +987,173 @@ class TinyWin(tk.Toplevel):
         self.destroy()
 
         self.admin_control.data_canvas.bind_all("<MouseWheel>", self.admin_control.on_mouse_wheel)
+
+
+class User(tk.Frame):
+    def __init__(self, parent, root: Root):
+        super().__init__(parent)
+        
+        table_height = 650
+
+        self.root = root
+
+        self.record_frame = tk.Frame()
+
+        tk.Label(self, text="User").place(anchor="nw", x=5, y=5)
+
+        data_border_frame = tk.LabelFrame(self, background="cyan", height=800, width=1200, text="Inventaris", font=("Arial", 24))
+        data_border_frame.pack_propagate(False)
+        data_border_frame.place(anchor="center", relx=0.5, rely=0.5)
+
+        export_btn = tk.Button(data_border_frame, bg="blue", text="Export", command=self.export)
+        export_btn.place(anchor="se", x=1173, y=742, width=75, height=30)
+
+        self.sortby = tk.StringVar(value="Waktu dibuat")
+
+        self.sortby.trace_add("write", self.load_record)
+
+        sortby_frame = tk.Frame(data_border_frame)
+        sortby_frame.place(anchor="ne", x=1173, width=370, height=30)
+
+        self.sortby_label = tk.Label(sortby_frame, text="Urut berdasarkan : ")
+        self.sortby_label.place(anchor="nw", width=170, height=30, x=0)
+
+        self.sort_dic = {
+            "Nama": "nama_barang", 
+            "Waktu dibuat": "id", 
+            "Jumlah": "jumlah", 
+            "Kondisi": "kondisi", 
+            "Lokasi": "lokasi"
+        }
+        
+        self.sortby_cb = ttk.Combobox(sortby_frame, textvariable=self.sortby, values=["Nama", "Waktu dibuat", "Jumlah", "Kondisi", "Lokasi"], state="readonly", cursor="hand2")
+        self.sortby_cb.place(anchor="nw", width=170, height=30, x=170)
+
+        self.sortby_cb.unbind_class("TCombobox", "<MouseWheel>")
+
+        self.ascending = True
+
+        self.ascdesc_btn = tk.Button(sortby_frame, text="↑", command=self.change_order)
+        self.ascdesc_btn.place(anchor="nw", width=30, height=30, x=340)
+        
+        content_container = tk.Frame(data_border_frame, background="lime", height=table_height, width=1150)
+        content_container.pack_propagate(False)
+        content_container.place(anchor="center", relx=0.5, rely=0.49)
+
+        data_canvas_container = tk.Frame(content_container, bg="green")
+        data_canvas_container.pack(side="left", fill="both", expand=True)
+
+        self.data_canvas = tk.Canvas(data_canvas_container, bg="blue", highlightthickness=0)
+        self.data_canvas.pack(side="bottom", fill="both", expand=True)
+
+        data_scrollbar = tk.Scrollbar(content_container, orient="vertical", command=self.data_canvas.yview, bg="pink")
+        data_scrollbar.pack(side="right", fill="y")
+
+        self.data_canvas.config(yscrollcommand=data_scrollbar.set)
+        self.data_canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
+
+        self.data_frame = tk.Frame(self.data_canvas, bg="lime")
+        self.data_frame.pack(fill="both", expand=True)
+        self.data_frame.bind(
+            "<Configure>",
+            lambda e: self.data_canvas.config(scrollregion=self.data_canvas.bbox("all"))
+        )
+        
+        self.data_canvas.create_window((0, 0), window=self.data_frame, anchor="nw")
+
+        self.loaded_record: list[Record] = []
+        
+
+        Record(data_canvas_container, [0, "Nama Barang", "Jumlah", "Kondisi", "Lokasi"], "#834646").pack(side="top", anchor="nw")
+    
+
+    def change_order(self):
+        if self.ascending:
+            self.ascending = False
+            self.ascdesc_btn.config(text="↓")
+        else:
+            self.ascending = True
+            self.ascdesc_btn.config(text="↑")
+        
+        self.load_record()
+    
+    
+    def clear_record(self):
+        self.record_frame.destroy()
+        self.loaded_record.clear()
+    
+
+    def load_record(self, *args):
+        self.clear_record()
+
+        if self.ascending:
+            cursor.execute(f"SELECT * FROM barang ORDER BY {self.sort_dic[self.sortby.get()]} ASC")
+        else:
+            cursor.execute(f"SELECT * FROM barang ORDER BY {self.sort_dic[self.sortby.get()]} DESC")
+        
+        result = cursor.fetchall()
+
+        data_length = len(result)
+
+        self.record_frame = tk.Frame(self.data_frame)
+        self.record_frame.pack()
+
+        for i in range(data_length):
+            new_record_separator = MyHSeparator(self.record_frame, "lime", 1)
+
+            new_record = Record(self.record_frame, result[i], "#ff7979")
+            new_record.pack()
+            
+            if i + 1 >= data_length:
+                continue
+            
+            new_record_separator.pack(fill="x", expand=True)
+
+    
+    def arise(self, root: Root):
+        self.tkraise()
+        root.geometry("1280x900")
+        root.geometry(f"+{max(0, root.winfo_x() - 240)}+{max(0, root.winfo_y() - 150)}")
+
+        self.load_record()
+        
+    
+    def on_mouse_wheel(self, e: tk.Event):
+        canvas_height = self.data_canvas.winfo_height()
+        content_height = self.data_canvas.bbox("all")[3]
+
+        if canvas_height < content_height:
+            self.data_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+    
+
+    def export(self):
+        file_path = filedialog.asksaveasfilename(
+            initialdir=".",
+            initialfile="data.csv",
+            title="Export File As",
+            defaultextension=".csv",
+            filetypes=(("CSV files", "*.csv"), ),
+            confirmoverwrite=True
+        )
+
+        if not file_path:
+            return
+        
+        if self.ascending:
+            cursor.execute(f"SELECT nama_barang, jumlah, kondisi, lokasi FROM barang ORDER BY {self.sort_dic[self.sortby.get()]} ASC")
+        else:
+            cursor.execute(f"SELECT nama_barang, jumlah, kondisi, lokasi FROM barang ORDER BY {self.sort_dic[self.sortby.get()]} DESC")
+
+        data = cursor.fetchall()
+        
+        with open(file_path, "w", newline="") as file:
+            writer = csv.writer(file, delimiter=";")
+
+            header = ["Nama Barang", "Jumlah", "Kondisi", "Lokasi"]
+
+            writer.writerow(header)
+            writer.writerows(data)
+
 
 
 if __name__ == "__main__":
