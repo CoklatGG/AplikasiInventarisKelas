@@ -25,6 +25,7 @@ class Root(tk.Tk):
         self.option_add("*Button.cursor", "hand2")
         self.option_add("*Checkbutton.cursor", "hand2")
         self.option_add("*TCheckbutton.cursor", "hand2")
+        self.option_add("*Frame.background", "#b7dff7")
         
         default_font = tkfont.nametofont(name="TkDefaultFont")
         default_font.config(size=14)
@@ -60,7 +61,7 @@ class Login(tk.Frame):
 
         self.img = tk.PhotoImage(file="res/placeholder.png")
         
-        tk.Label(login_frame, image=self.img).place(anchor="center", relx=0.5, rely=0.2)  
+        tk.Label(login_frame, image=self.img).place(anchor="center", relx=0.5, y=84)  
 
         entry_frame = tk.Frame(login_frame, bg="purple")
         entry_frame.place(anchor="center", rely=0.51, relx=0.5)
@@ -628,6 +629,11 @@ class MyHSeparator(tk.Frame):
         super().__init__(master, background=color, height=thickness)
 
 
+class MyVSeparator(tk.Frame):
+    def __init__(self, master: tk.Misc, color: str, thickness: int):
+        super().__init__(master, background=color, width=thickness)
+
+
 class Record(tk.Frame):
     def __init__(self, master: tk.Misc, data: list, color: str):
         super().__init__(master, bg="purple", width=1135, height=42)
@@ -637,17 +643,29 @@ class Record(tk.Frame):
 
         self.data_id = data[0]
         
-        nama_frame = tk.Frame(self, bg=color, width=int((weight_nama/weight_sum) * 1135), height=60)
+        nama_frame = tk.Frame(self, bg=color, width=int((weight_nama/weight_sum) * 1135) - 1, height=60)
         nama_frame.pack(side="left")
         nama_frame.pack_propagate(False)
 
-        jumlah_frame = tk.Frame(self, bg=color, width=int((weight_jumlah/weight_sum) * 1135), height=60)
+        separator_1 = MyVSeparator(self, "black", 1)
+        separator_1.pack(side="left")
+        separator_1.pack_propagate(False)
+
+        jumlah_frame = tk.Frame(self, bg=color, width=int((weight_jumlah/weight_sum) * 1135) - 1, height=60)
         jumlah_frame.pack(side="left")
         jumlah_frame.pack_propagate(False)
 
-        kondisi_frame = tk.Frame(self, bg=color, width=int((weight_kondisi/weight_sum) * 1135), height=60)
+        separator_2 = MyVSeparator(self, "black", 1)
+        separator_2.pack(side="left")
+        separator_2.pack_propagate(False)
+
+        kondisi_frame = tk.Frame(self, bg=color, width=int((weight_kondisi/weight_sum) * 1135) - 1, height=60)
         kondisi_frame.pack(side="left")
         kondisi_frame.pack_propagate(False)
+
+        separator_2 = MyVSeparator(self, "black", 1)
+        separator_2.pack(side="left")
+        separator_2.pack_propagate(False)
 
         lokasi_frame = tk.Frame(self, bg=color, width=int((weight_lokasi/weight_sum) * 1135), height=60)
         lokasi_frame.pack(side="left")
